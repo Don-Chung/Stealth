@@ -1,0 +1,4 @@
+repository "Stealth@ssl://elf-dark@sh02-plasticscm.unity.cn:8787"
+  path "/"
+    smartbranch "/main/zly_realsky" 
+     
