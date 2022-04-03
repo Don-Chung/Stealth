@@ -10,6 +10,8 @@
 
 using namespace std;
 
+pthread_rwlock_t rwlock;
+
 // 信息结构体
 struct SockInfo{
     struct sockaddr_in addr;
@@ -42,7 +44,7 @@ int main() {
     }
 
     // 2.绑定本地的IP PORT
-    struct sockaddr_in saddr;
+    struct sockaddr_in saddr{};
     saddr.sin_family = AF_INET;
     saddr.sin_port = htons(9998);
     saddr.sin_addr.s_addr = INADDR_ANY; // 0 = 0.0.0.0
@@ -66,10 +68,11 @@ int main() {
         infos[i].fd = -1;
     }
 
+    pthread_rwlock_init(&rwlock, nullptr);  // 初始化读写锁
     // 4.阻塞并等待客户端链接
     uint addrlen = sizeof(struct sockaddr_in);
     while(true){
-        struct SockInfo* pinfo;
+        struct SockInfo *pinfo = nullptr;
         for (int i = 0; i < max; ++i) {
             if(infos[i].fd == -1){
                 pinfo = &infos[i];
@@ -84,7 +87,7 @@ int main() {
         }
         // 创建子线程
         pthread_t  tid;
-        pthread_create(&tid, NULL, working, pinfo);
+        pthread_create(&tid, nullptr, working, pinfo);
         pthread_detach(tid);
     }
     FreeConnect();
@@ -110,9 +113,13 @@ void* working(void* arg)
         if(len > 0){
             //数据库操作
             int tmp = atoi(buff);
+            pthread_rwlock_wrlock(&rwlock);
             InsertTime(tmp);
             printf("client say: %s\n", buff);
+            pthread_rwlock_unlock(&rwlock);
+            pthread_rwlock_rdlock(&rwlock);
             QueryTime();
+            pthread_rwlock_unlock(&rwlock);
             string sendTime;
             for(const string& i : times){
                 sendTime += ("#" + i);
@@ -133,7 +140,7 @@ void* working(void* arg)
     //关闭文件描述符
     close(pinfo->fd);
     pinfo->fd = -1;
-    return NULL;
+    return nullptr;
 }
 
 //连接数据库
@@ -147,7 +154,7 @@ bool ConnectDatabase()
     const char table[] = "ranks";
     const int port = 3306;
     //返回false则连接失败，返回true则连接成功
-    if (!(mysql_real_connect(&mysql, host, user, psw, table, port, NULL, 0)) )
+    if (!(mysql_real_connect(&mysql, host, user, psw, table, port, nullptr, 0)) )
         //中间分别是主机，用户名，密码，数据库名，端口号（可以写默认0或者3306等），可以先写成参数再传进去
     {
         printf("Error connecting to database:%s\n", mysql_error(&mysql));
